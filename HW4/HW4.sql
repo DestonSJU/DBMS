@@ -1,0 +1,231 @@
+SET FOREIGN_KEY_CHECKS = 0;
+SET SQL_SAFE_UPDATES = 0;
+
+-- Primary keys, foreign keys, and unique constraints
+Alter table actor
+add primary key (actor_id);
+
+Alter table address
+add primary key (address_id);
+Alter table address
+add foreign key(city_id) references city(city_id);
+
+Alter table category
+add primary key (category_id);
+
+Alter table city
+add primary key (city_id);
+Alter table city
+add foreign key (country_id) references country(country_id);
+
+Alter table country
+add primary key (country_id);
+
+Alter table customer
+add primary key (customer_id);
+Alter table customer
+add foreign key (store_id) references store(store_id);
+Alter table customer
+add foreign key (address_id) references address(address_id);
+
+Alter table film
+add primary key (film_id);
+Alter table film
+add foreign key (language_id) references language(language_id);
+
+Alter table film_actor
+add foreign key (actor_id) references actor(actor_id);
+Alter table film_actor
+add foreign key (film_id) references film(film_id);
+
+Alter table rental
+add primary key (rental_id);
+Alter table rental
+add unique key (rental_id, rental_date);
+Alter table rental
+add foreign key (inventory_id) references inventory(inventory_id);
+Alter table rental
+add unique key (rental_id, inventory_id);
+Alter table rental
+add foreign key (customer_id) references customer(customer_id);
+Alter table rental
+add unique key (rental_id, customer_id);
+
+Alter table staff
+add primary key (staff_id);
+Alter table staff
+add foreign key (address_id) references address(address_id);
+Alter table staff
+add foreign key (store_id) references store(store_id);
+
+Alter table store
+add primary key (store_id);
+Alter table store
+add foreign key (address_id) references address(address_id);
+
+Alter table film_category
+add foreign key (film_id) references film(film_id);
+Alter table film_category
+add foreign key (category_id) references category(category_id);
+
+Alter table inventory
+add primary key(inventory_id);
+Alter table inventory
+add foreign key (film_id) references film(film_id);
+Alter table inventory
+add foreign key (store_id) references store(store_id);
+
+Alter table language
+add primary key(language_id);
+
+Alter table payment
+add primary key (payment_id);
+Alter table payment
+add foreign key (customer_id) references customer(customer_id);
+Alter table payment
+add foreign key (staff_id) references staff(staff_id);
+Alter table payment
+add foreign key (rental_id) references rental(rental_id);
+
+
+-- Other constraints
+Alter table category
+add constraint cname
+check (category.name = "Animation" or category.name = "Comedy" or category.name = "Family" or category.name = "Foreign" or category.name = "Sci-Fi" or category.name = "Travel" or category.name = "Children" or category.name = "Drama" or 
+	   category.name = "Horror" or category.name = "Action" or category.name = "Classics" or category.name = "Games" or category.name = "New" or category.name = "Documentary" or category.name = "Sports" or category.name = "Music");
+
+Alter table film
+add constraint sf
+check (film.special_features like "%Behind the Scenes%" or film.special_features like "%Commentaries%" or film.special_features like "%Deleted Scenes%" or film.special_features like "%Trailers%");
+
+Alter table rental
+add constraint valid_rental_date
+check (date(rental.rental_date) >= "2000-01-01" and date(rental.rental_date) < "2025-01-01");
+
+Alter table rental
+add constraint valid_return_date
+check (date(rental.return_date) >= "2000-01-01" and date(rental.return_date) < "2025-01-01");
+
+Alter table customer
+add constraint active0or1
+check (customer.active = 0 or customer.active = 1);
+
+Alter table film
+add constraint rDuration
+check (film.rental_duration >= 2 and film.rental_duration <= 8);
+
+Alter table film
+add constraint rRate
+check (film.rental_rate >= 0.99 and film.rental_rate <= 6.99);
+
+Alter table film
+add constraint length
+check (film.length >= 30 and film.length <= 200);
+
+Alter table film
+add constraint valid_rating
+check (film.rating = "PG" or film.rating = "G" or film.rating = "NC-17" or film.rating = "PG-13" or film.rating = "R");
+
+Alter table film
+add constraint rCost
+check (film.replacement_cost >= 5 and film.replacement_cost <= 100);
+
+Alter table payment
+add constraint amountAbove0
+check (payment.amount >= 0);
+
+
+-- 1.
+-- Displays name and average film length for each film category in alphabetical order
+-- Joins category, film_category, and film tables together to do this
+Select category.name, avg(film.length) as "Average Film Length"
+from category inner join film_category using (category_id) inner join film using (film_id)
+group by category_id
+order by category.name;
+
+
+-- 2.
+-- Creates a table called AvgLength which contains the category name and average film lengths for each category
+-- Joins tables category, film_category, and film to do this
+Create table AvgLength as
+Select category.name, avg(film.length) as "Average_Film_Length"
+from category inner join film_category using (category_id) inner join film using (film_id)
+group by category_id
+order by category.name;
+
+-- Displays the name and average film length of the category with the longest average film length
+-- Finds the average film length that is greater than or equal to the max average film length
+-- Both the main and subquery use AvgLength table
+Select name, Average_Film_Length
+from AvgLength
+where Average_Film_Length >= (Select max(Average_Film_Length)
+							  from AvgLength);
+
+-- Displays the name and average film length of the category with the shortest average film length
+-- Finds the average film length that is less than or equal to the min average film length
+-- Both main and subquery use the AvgLenght table
+Select name, Average_Film_Length
+from AvgLength
+where Average_Film_Length <= (Select min(Average_Film_Length)
+							  from AvgLength);
+
+
+-- 3.
+-- Displays the customer id, first name, and last name of all the customers who have bought an action movie but not comedy or classics
+-- For each row, it checks if the category of the film rented is action and then if that customer id doesn't appear when the category name is comedy or classics
+-- Both the main and subquery join tables customer, rental, inventory, film, film_category, and category to do this
+Select distinct customer_id, customer.first_name, customer.last_name
+from customer inner join rental using (customer_id) inner join inventory using (inventory_id) inner join film using (film_id) inner join film_category using (film_id) inner join category using (category_id)
+where category.name = "Action" and customer_id not in (select customer_id
+													   from customer inner join rental using (customer_id) inner join inventory using (inventory_id) inner join film using (film_id) inner join film_category using (film_id) inner join category using (category_id)
+                                                       where category.name = "Comedy" or category.name = "Classics");
+                                                       
+
+-- 4.
+-- Creates the table English_Films which contains the actor id, actor first and last names, and the amount of english films they are in
+-- Joins tables actor, flim_actor, film, and language to do this
+Create table English_Films as
+Select actor_id, actor.first_name, actor.last_name, count(film_id) as "Number_of_Films"
+from actor inner join film_actor using (actor_id) inner join film using (film_id) inner join language using (language_id)
+where language.name = "English"
+group by actor_id;
+
+-- Displays the actor id, first and last names, and the number of english films of the actor that has been in the most english films
+-- Finds the actor where the number of english films is greater than or equal to the max number of english flims
+-- Both the main and subquery use the English_Films table
+Select actor_id, first_name, last_name, Number_of_Films
+from English_Films
+where Number_of_Films >= (Select max(Number_of_Films)
+						  from English_Films);
+                          
+                          
+-- 5.
+-- Displays the amount of distinct films that were rented in Mike's store and returned in 10 days
+-- Checks each row to see if the difference between the return and rental dates is 10 and that the store id is equal to the store id that Mike works at
+-- The main query joins the staff, rental, inventory, and film tables while the subquery uses the staff table
+
+Select count(distinct film_id)
+from staff inner join rental using (staff_id) inner join inventory using (inventory_id) inner join film using (film_id)
+where datediff(rental.return_date, rental.rental_date) = 10 and staff.store_id = (Select staff.store_id
+																				  from staff
+																				  where staff.first_name = "Mike");
+                                                                                  
+                                                                                  
+-- 6.
+-- Creates the table Amount_Actors which contains film id, and amount of actors for that film
+-- Joins actor, film_actor, and film to do this
+Create table Amount_Actors as                    
+Select film_id, count(actor_id) as "Number_of_Actors"
+from actor inner join film_actor using (actor_id) inner join film using (film_id)
+group by film_id;
+
+-- Displays actor id and the first and last names of every actor that is in the film with the most actors
+-- Checks that the film id is equal to the film id where the number of actors is greater than or equal to the max number of actors
+-- The main and subqueries all use the Amount_Actors table
+Select actor_id, actor.first_name, actor.last_name
+from actor inner join film_actor using (actor_id) inner join film using (film_id)
+where film_id = (Select film_id
+				 from Amount_Actors
+                 where Number_of_Actors >= (Select max(Number_of_Actors)
+											from Amount_Actors)
+                                            );
